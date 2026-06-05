@@ -5,6 +5,7 @@
 #include <hamsandwich>
 #include <xs>
 #include <engine>
+#include <nst_player>
 
 #define PLUGIN "Zombie United"
 #define VERSION "1.0"
@@ -13,7 +14,7 @@
 // Setting File Name
 new const SETTING_FILE[] = "nst_zombie_united.ini"
 new const CVAR_FILE[] = "nst_zombie_united.cfg"
-new const LANG_FILE[] = "nst_zombie_united.txt"
+new const LANG_FILE[] = "nst_zombie.txt"
 new const ZOMBIE_MOD = 2
 
 // Limiters for stuff not worth making dynamic arrays out of (increase if needed)
@@ -27,7 +28,7 @@ new const SPAWNS_BOX_URL[] = "%s/nstzb/%s.supplybox_spawns.cfg"
 
 // Cvar
 new cvar_lighting, cvar_thunder, cvar_randspawn, cvar_zombie_attack_damage, cvar_weapons_uclip,
-cvar_nvg_zombie_give, cvar_nvg_zombie_color[3], cvar_nvg_zombie_alpha, cvar_nvg_zombie_size, cvar_damage_nade, cvar_damage_grenade,
+cvar_nvg_zombie_give, cvar_nvg_zombie_color[3], cvar_nvg_zombie_alpha, cvar_nvg_zombie_size, cvar_nvg_zombie_dlight, cvar_damage_nade, cvar_damage_grenade,
 cvar_icon_deplay, cvar_icon, cvar_icon_light, cvar_icon_size
 
 // available spawn points counter
@@ -253,6 +254,7 @@ public plugin_natives()
 	register_native("nst_zb_color_saytext", "natives_color_saytext", 1)
 	register_native("nst_zb_get_user_start_health", "native_get_user_start_health", 1)
 	register_native("nst_zb_get_user_level", "native_get_user_level", 1)
+	register_native("nst_zb_get_user_sex", "native_get_user_sex", 1)
 	register_native("nst_zb_get_take_damage", "native_get_take_damage", 1)
 	register_native("nst_zb_get_damage_nade", "native_get_damage_nade", 1)
 
@@ -373,6 +375,7 @@ public plugin_init()
 	cvar_nvg_zombie_give = register_cvar("nst_zbu_nvg_zombie_give", "1")
 	cvar_nvg_zombie_alpha = register_cvar("nst_zbu_nvg_zombie_alpha", "70")
 	cvar_nvg_zombie_size = register_cvar("nst_zbu_nvg_zombie_size", "150")
+	cvar_nvg_zombie_dlight = register_cvar("nst_zbu_nvg_zombie_dlight", "0")
 	cvar_nvg_zombie_color[0] = register_cvar("nst_zbu_nvg_zombie_color_r", "253")
 	cvar_nvg_zombie_color[1] = register_cvar("nst_zbu_nvg_zombie_color_g", "110")
 	cvar_nvg_zombie_color[2] = register_cvar("nst_zbu_nvg_zombie_color_b", "110")
@@ -1152,6 +1155,7 @@ public menu_wpn(id)
 }
 public menu_wpn_item(id, type)
 {
+	if (!is_user_connected(id)) return PLUGIN_HANDLED
 	if (g_zombie[id]) return PLUGIN_HANDLED
 	
 	// check size
@@ -1199,6 +1203,12 @@ public menu_wpn_item(id, type)
 }
 public menu_wpn_pri_handler(id, menu, item)
 {
+	if (!is_user_connected(id))
+	{
+		menu_destroy(menu)
+		return PLUGIN_HANDLED
+	}
+
 	// show menu wpn sec
 	menu_wpn_item(id, 2)
 	
@@ -1220,6 +1230,12 @@ public menu_wpn_pri_handler(id, menu, item)
 }
 public menu_wpn_sec_handler(id, menu, item)
 {
+	if (!is_user_connected(id))
+	{
+		menu_destroy(menu)
+		return PLUGIN_HANDLED
+	}
+
 	// give nade
 	give_nade(id)
 
@@ -1339,6 +1355,8 @@ public reset_wpnmodel(id)
 public show_menu_class(taskid)
 {
 	new id = ID_MENUCLASS
+	if (g_newround || g_endround || !is_user_connected(id)) return;
+
 	g_class[id] = 0
 	
 	// set freeze
@@ -1357,6 +1375,12 @@ public show_menu_class(taskid)
 }
 public select_class(id, menu, item)
 {
+	if (!is_user_connected(id))
+	{
+		menu_destroy(menu)
+		return PLUGIN_HANDLED
+	}
+
 	// respawn player
 	g_class[id] = 1
 	player_spawn(id)
@@ -1388,11 +1412,12 @@ public select_class(id, menu, item)
 	else make_human(id)
 	
 	//client_print(id, print_chat, "item: %i - id: %s", name, idclass)
+	return PLUGIN_HANDLED
 }
 // menu class zombie
 public show_menu_class_zombie(id)
 {
-	if (!g_zombie[id]) return PLUGIN_HANDLED
+	if (!is_user_connected(id) || !g_zombie[id]) return PLUGIN_HANDLED
 	
 	// create menu wpn
 	new menuwpn_title[64]
@@ -1406,13 +1431,24 @@ public show_menu_class_zombie(id)
 		formatex(class_id, charsmax(class_name), "%i", i)
 		menu_additem(mHandleID, class_name, class_id, 0)
 	}
+
+	if (!is_user_connected(id))
+	{
+		menu_destroy(mHandleID)
+		return PLUGIN_HANDLED
+	}
+
 	menu_display(id, mHandleID, 0)
 	
 	return PLUGIN_HANDLED
 }
 public select_class_zombie(id, menu, item)
 {
-	if (!g_zombie[id]) return PLUGIN_HANDLED
+	if (!is_user_connected(id) || !g_zombie[id])
+	{
+		menu_destroy(menu)
+		return PLUGIN_HANDLED
+	}
 	
 	if (item == MENU_EXIT)
 	{
@@ -1473,6 +1509,11 @@ public player_respawn(taskid)
 public make_player(taskid)
 {
 	new id = ID_MAKEPLAYER
+	if (g_newround || g_endround || !is_user_connected(id))
+	{
+		if (task_exists(taskid)) remove_task(taskid)
+		return;
+	}
 
 	if (is_user_bot(id))
 	{
@@ -1556,6 +1597,7 @@ public qq(id)
 public cmd_nightvision(id)
 {
 	if (!is_user_alive(id) || g_blind[id]) return PLUGIN_HANDLED;
+	if (g_zombie[id] && !get_pcvar_num(cvar_nvg_zombie_give)) return PLUGIN_HANDLED;
 
 	if (!g_nvg[id])
 	{
@@ -1563,7 +1605,8 @@ public cmd_nightvision(id)
 		if (g_zombie[id])
 		{
 			remove_task(id+TASK_NVISION)
-			set_task(0.1, "set_user_nvision", id+TASK_NVISION, _, _, "b")
+			if (get_pcvar_num(cvar_nvg_zombie_dlight)) set_task(0.1, "set_user_nvision", id+TASK_NVISION, _, _, "b")
+			else set_user_screen_fade(id)
 		}
 		else  set_user_gnvision(id, g_nvg[id])
 		PlaySound(id, sound_nvg[1])
@@ -1600,23 +1643,25 @@ public set_user_nvision(taskid)
 	
 	if (!is_user_alive(id)) return;
 
-	// Get player's origin
-	static origin[3]
-	get_user_origin(id, origin)
-	
-	// Nightvision message
-	message_begin(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, _, id)
-	write_byte(TE_DLIGHT) // TE id
-	write_coord(origin[0]) // x
-	write_coord(origin[1]) // y
-	write_coord(origin[2]) // z
-	write_byte(get_pcvar_num(cvar_nvg_zombie_size)) // radius
-	write_byte(get_pcvar_num(cvar_nvg_zombie_color[0])) // r
-	write_byte(get_pcvar_num(cvar_nvg_zombie_color[1])) // g
-	write_byte(get_pcvar_num(cvar_nvg_zombie_color[2])) // b
-	write_byte(2) // life
-	write_byte(0) // decay rate
-	message_end()
+	// Optional dynamic light mode is disabled by default for Xash3D compatibility.
+	if (get_pcvar_num(cvar_nvg_zombie_dlight))
+	{
+		static origin[3]
+		get_user_origin(id, origin)
+		
+		message_begin(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, _, id)
+		write_byte(TE_DLIGHT) // TE id
+		write_coord(origin[0]) // x
+		write_coord(origin[1]) // y
+		write_coord(origin[2]) // z
+		write_byte(get_pcvar_num(cvar_nvg_zombie_size)) // radius
+		write_byte(get_pcvar_num(cvar_nvg_zombie_color[0])) // r
+		write_byte(get_pcvar_num(cvar_nvg_zombie_color[1])) // g
+		write_byte(get_pcvar_num(cvar_nvg_zombie_color[2])) // b
+		write_byte(2) // life
+		write_byte(0) // decay rate
+		message_end()
+	}
 
 	// screen_fade
 	set_user_screen_fade(id)
@@ -2096,8 +2141,7 @@ public fw_Touch(ent, id)
 		new message[200]
 		format(message, charsmax(message), "%L", LANG_PLAYER, "ZBU_NOTICE_SUPPLYBOX_PICKUP", get_lang_item(item_id))
 		SendCenterText(id, message)
-		color_saytext(0, "^x04[Zombie United]^x01 Bam (E) de su dung Item !!!")
-		
+		color_saytext(0, "^x04[Zombie United]^x01 Press (E) to use an item!")		
 		// play sound
 		PlayEmitSound(id, CHAN_VOICE, supplybox_sound_pickup)
 
@@ -2427,12 +2471,11 @@ make_zombie(id)
 	
 	// check model
 	CurrentWeapon(id)
-	color_saytext(id, "^x04[Zombie United]^x01 Bam (G) de su dung tuyet chieu !!!")
-	
+	color_saytext(id, "^x04[Zombie United]^x01 Press (G) to use your special skill!")	
 	// turn off flashlight nvg
 	turn_off_flashlight(id)
 	turn_off_nvg(id)
-	if (get_pcvar_num(cvar_nvg_zombie_give)) cmd_nightvision(id)
+	if (get_pcvar_num(cvar_nvg_zombie_give) == 1) cmd_nightvision(id)
 }
 set_model_for_player(id)
 {	
@@ -2454,9 +2497,9 @@ set_model_for_player(id)
 			ArrayGetString(zombie_viewmodel_origin, idclass, model_view, charsmax(model_view))
 			model_index = ArrayGetCell(zombie_modelindex_origin, idclass)
 		}
-		cs_set_user_model(id, model_view)
-		if (get_zombie_set_modelindex(id)) fm_cs_set_user_model_index(id, model_index)
-		else fm_reset_user_model_index(id)
+		nst_set_user_model(id, model_view)
+		if (get_zombie_set_modelindex(id)) nst_set_user_model_index(id, model_index)
+		else nst_reset_user_model_index(id)
 		
 		//client_print(id, print_chat, "[%s][%s]", model_view, model_wpn)
 	}
@@ -2488,6 +2531,7 @@ reset_value_death(id)
 {
 	if (task_exists(id+TASK_RESPAWN)) remove_task(id+TASK_RESPAWN)
 	if (task_exists(id+TASK_MENUCLASS)) remove_task(id+TASK_MENUCLASS)
+	if (task_exists(id+TASK_MAKEPLAYER)) remove_task(id+TASK_MAKEPLAYER)
 	if (task_exists(id+TASK_PROTECTION)) remove_task(id+TASK_PROTECTION)
 	if (task_exists(id+TASK_NVISION)) remove_task(id+TASK_NVISION)
 	if (task_exists(id+TASK_BLIND)) remove_task(id+TASK_BLIND)
@@ -2923,7 +2967,8 @@ do_random_spawn_box(id, regularspawns = 0)
 
 fm_reset_user_model(id)
 {
-	cs_set_user_model(id, g_human_model[random_num(0, charsmax(g_human_model))])
+	nst_reset_user_model(id)
+	nst_reset_user_model_index(id)
 }
 
 GetIdWpn(wpn[])
@@ -3901,8 +3946,8 @@ load_customization_from_files()
 				if (equal(key, "MODEL"))
 				{
 					format(zombiebom_model, charsmax(zombiebom_model), "%s", value)
-					format(zombiebom_model_p, charsmax(zombiebom_model_p), "models/zombie_united/p_%s.mdl", value)
-					format(zombiebom_model_w, charsmax(zombiebom_model_w), "models/zombie_united/w_%s.mdl", value)
+					format(zombiebom_model_p, charsmax(zombiebom_model_p), "models/nst_zombie/p_%s.mdl", value)
+					format(zombiebom_model_w, charsmax(zombiebom_model_w), "models/nst_zombie/w_%s.mdl", value)
 				}
 				else if (equal(key, "RADIUS"))
 					zombiebom_radius = str_to_float(value)
@@ -4167,6 +4212,16 @@ public native_get_user_zombie(id)
 public native_get_user_zombie_class(id)
 {
 	return g_zombieclass[id];
+}
+public native_get_user_sex(id)
+{
+	if (id < 1 || id > g_maxplayers || !is_user_connected(id)) return 1;
+	if (g_zombie[id] && g_zombieclass[id] >= 0 && g_zombieclass[id] < class_count)
+	{
+		return ArrayGetCell(zombie_sex, g_zombieclass[id]);
+	}
+	
+	return nst_get_user_sex(id);
 }
 public natives_color_saytext(player, const message[], any:...)
 {
