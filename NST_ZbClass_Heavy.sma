@@ -18,17 +18,18 @@ const Float:zclass_gravity = 1.2 // gravity
 const Float:zclass_knockback = 1.0 // knockback
 const zclass_sex = 1
 const zclass_modelindex = 3
-new const zclass_hurt1[] = "nst_zombie/zombi_hurt_heavy_1.wav"
-new const zclass_hurt2[] = "nst_zombie/zombi_hurt_heavy_2.wav"
-new const zclass_death1[] = "nst_zombie/zombi_death_1.wav"
-new const zclass_death2[] = "nst_zombie/zombi_death_2.wav"
-new const zclass_heal[] = "nst_zombie/zombi_heal_heavy.wav"
-new const model_trap[] = "nst_zombie/zombitrap.mdl"
-new const sound_trapsetup[] = "nst_zombie/zombi_trapsetup.wav"
-new const sound_trapped[] = "nst_zombie/zombi_trapped.wav"
-new const sprites_trap[] = "nst_zombie/trap.spr"
+new const zclass_hurt1[] = "sound/nst_zombie/zombi_hurt_heavy_1.wav"
+new const zclass_hurt2[] = "sound/nst_zombie/zombi_hurt_heavy_2.wav"
+new const zclass_death1[] = "sound/nst_zombie/zombi_death_1.wav"
+new const zclass_death2[] = "sound/nst_zombie/zombi_death_2.wav"
+new const zclass_heal[] = "sound/nst_zombie/zombi_heal_heavy.wav"
+new const model_trap[] = "models/nst_zombie/zombitrap.mdl"
+new const sound_trapsetup[] = "sound/nst_zombie/zombi_trapsetup.wav"
+new const sound_trapped[] = "sound/nst_zombie/zombi_trapped.wav"
+new const sprites_trap[] = "sprites/nst_zombie/trap.spr"
 
 const MAX_TRAP = 30
+const MAX_TRAP_SLOTS = MAX_TRAP + 1
 new const trap_classname[] = "nst_zb_traps"
 
 // Class IDs
@@ -38,8 +39,8 @@ new g_zclass_heavy
 new trap_total, trap_timewait, trapped_time, trap_timesetup, trap_invisible
 
 // Vars
-new g_total_traps[33], g_msgScreenShake, g_trapping[33], g_player_trapped[33]
-new g_waitsetup[33], TrapOrigins[33][MAX_TRAP][4], idsprites_trap
+new g_total_traps[33], g_msgScreenShake, g_msgStatusIcon, g_trapping[33], g_player_trapped[33]
+new g_waitsetup[33], TrapOrigins[33][MAX_TRAP_SLOTS][4], idsprites_trap
 // Task offsets
 enum (+= 100)
 {
@@ -60,6 +61,7 @@ public plugin_init()
 	
 	// Msg
 	g_msgScreenShake = get_user_msgid("ScreenShake")
+	g_msgStatusIcon = get_user_msgid("StatusIcon")
 	
 	// Events
 	register_logevent("logevent_round_start",2, "1=Round_Start")
@@ -95,6 +97,7 @@ public nst_zb_user_infected(id, infector)
 {
 	// remove trap
 	remove_trapped_when_infected(id)
+	clear_trap_icon(id)
 }
 public event_round_start()
 {
@@ -126,6 +129,7 @@ public Death()
 	
 	// remove trap
 	remove_trapped_when_infected(victim)
+	clear_trap_icon(victim)
 	
 	// set speed for player
 	//set_pev(victim, pev_flags, (pev(victim, pev_flags) & ~FL_FROZEN))
@@ -149,6 +153,7 @@ reset_value_player(id)
 	g_total_traps[id] = 0
 	g_trapping[id] = 0
 	g_player_trapped[id] = 0
+	clear_trap_icon(id)
 	
 	remove_traps_player(id)
 }
@@ -248,9 +253,22 @@ public pfn_touch(ptr, ptd)
 // show icon drap
 public client_PostThink(id)
 {
-	if (!is_user_alive(id) || !nst_zb_get_user_zombie(id) || !g_total_traps[id]) return;
+	if (!is_user_alive(id)) return;
 
-	for (new i = 1; i <= g_total_traps[id]; i++)
+	if (nst_zb_get_user_zombie(id) && nst_zb_get_user_zombie_class(id) == g_zclass_heavy)
+	{
+		show_trap_icon(id)
+	}
+	else
+	{
+		clear_trap_icon(id)
+	}
+
+	if (!nst_zb_get_user_zombie(id) || !g_total_traps[id]) return;
+
+	new trap_count = g_total_traps[id]
+	if (trap_count > MAX_TRAP) trap_count = MAX_TRAP
+	for (new i = 1; i <= trap_count; i++)
 	{
 		DrawSprite(id, i)
 	}
@@ -272,6 +290,7 @@ public cmd_setuptrap(id)
 		new level = nst_zb_get_user_level(id)
 		new max_traps = get_pcvar_num(trap_total)
 		if (level==1) max_traps = max_traps/2
+		if (max_traps > MAX_TRAP) max_traps = MAX_TRAP
 		if (g_total_traps[id]>=max_traps)
 		{
 			new message[100]
@@ -362,12 +381,15 @@ UpdateTrap(ent_trap)
 	//new id = entity_get_int(ent_trap, EV_INT_iuser1)
 	new id = pev(ent_trap, pev_owner)
 
-	new total, TrapOrigins_new[MAX_TRAP][4]
-	for (new i = 1; i <= g_total_traps[id]; i++)
+	new total, TrapOrigins_new[MAX_TRAP_SLOTS][4]
+	new trap_count = g_total_traps[id]
+	if (trap_count > MAX_TRAP) trap_count = MAX_TRAP
+	for (new i = 1; i <= trap_count; i++)
 	{
 		if (TrapOrigins[id][i][0] != ent_trap)
 		{
 			total += 1
+			if (total > MAX_TRAP) break
 			TrapOrigins_new[total][0] = TrapOrigins[id][i][0]
 			TrapOrigins_new[total][1] = TrapOrigins[id][i][1]
 			TrapOrigins_new[total][2] = TrapOrigins[id][i][2]
@@ -401,9 +423,30 @@ remove_trapped_when_infected(id)
 		g_player_trapped[id] = 0
 	}
 }
+show_trap_icon(id)
+{
+	message_begin(MSG_ONE, g_msgStatusIcon, _, id)
+	write_byte(1)
+	write_string("g_trap")
+	write_byte(0)
+	write_byte(160)
+	write_byte(0)
+	message_end()
+}
+clear_trap_icon(id)
+{
+	message_begin(MSG_ONE, g_msgStatusIcon, _, id)
+	write_byte(0)
+	write_string("g_trap")
+	write_byte(0)
+	write_byte(0)
+	write_byte(0)
+	message_end()
+}
 create_w_class(id)
 {
 	if (!nst_zb_get_user_zombie(id)) return -1;
+	if (g_total_traps[id] >= MAX_TRAP) return -1;
 
 	new user_flags = pev(id, pev_flags)
 	if (!(user_flags & FL_ONGROUND))
@@ -486,6 +529,8 @@ bartime(id, time_run)
 }
 DrawSprite(id, idtrap)
 {
+	if (idtrap < 1 || idtrap > MAX_TRAP) return;
+
 	message_begin(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, {0, 0, 0}, id)
 	write_byte(TE_SPRITE) // additive sprite, plays 1 cycle
 	write_coord(TrapOrigins[id][idtrap][1]) // xpos
@@ -513,14 +558,16 @@ remove_traps()
 remove_traps_player(id)
 {
 	// remove model trap in map
-	for (new i = 1; i <= g_total_traps[id]; i++)
+	new trap_count = g_total_traps[id]
+	if (trap_count > MAX_TRAP) trap_count = MAX_TRAP
+	for (new i = 1; i <= trap_count; i++)
 	{
 		new trap_ent = TrapOrigins[id][i][0]
 		if (is_valid_ent(trap_ent)) engfunc(EngFunc_RemoveEntity, trap_ent)
 	}
 	
 	// reset oringin
-	new TrapOrigins_pl[MAX_TRAP][4]
+	new TrapOrigins_pl[MAX_TRAP_SLOTS][4]
 	TrapOrigins[id] = TrapOrigins_pl
 }
 user_screen_shake(id, amplitude = 4, duration = 2, frequency = 10)
