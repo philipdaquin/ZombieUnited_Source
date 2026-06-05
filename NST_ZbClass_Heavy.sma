@@ -35,6 +35,7 @@ new const trap_classname[] = "nst_zb_traps"
 
 // Class IDs
 new g_zclass_heavy
+new g_zb_mod
 
 // Cvars
 new trap_total, trap_timewait, trapped_time, trap_timesetup, trap_invisible
@@ -88,8 +89,9 @@ public plugin_precache()
 	engfunc(EngFunc_PrecacheSound, sound_trapsetup)
 	engfunc(EngFunc_PrecacheSound, sound_trapped)
 	idsprites_trap = engfunc(EngFunc_PrecacheModel, sprites_trap)
+	g_zb_mod = nst_zb_get_mod()
 
-	switch (nst_zb_get_mod())
+	switch (g_zb_mod)
 	{
 		case NSTZB_ZB3:
 		{
@@ -301,18 +303,18 @@ public cmd_setuptrap(id)
 		
 		// check total trap
 		new level = nst_zb_get_user_level(id)
-		new max_traps = get_pcvar_num(trap_total)
-		if (level==1) max_traps = max_traps/2
-		if (max_traps > MAX_TRAP) max_traps = MAX_TRAP
-		if (g_total_traps[id]>=max_traps)
-		{
+			new max_traps = get_pcvar_num(trap_total)
+			if (level==1) max_traps = max_traps/2
+			if (max_traps > MAX_TRAP) max_traps = MAX_TRAP
+			if (g_total_traps[id]>=max_traps)
+			{
 			new message[100]
-			new prefix[24]
-			get_mod_prefix(prefix, charsmax(prefix))
-			format(message, charsmax(message), "^x04%s^x01 %L", prefix, LANG_PLAYER, "CLASS_NOTICE_MAXTRAP", max_traps)
-			nst_zb_color_saytext(id, message)
-			return PLUGIN_HANDLED
-		}
+				new prefix[24]
+				get_mod_prefix(prefix, charsmax(prefix))
+				format(message, charsmax(message), "^x04%s^x01 %L", prefix, LANG_PLAYER, "CLASS_NOTICE_MAXTRAP", max_traps)
+				nst_zb_color_saytext(id, message)
+				return PLUGIN_HANDLED
+			}
 		 
 		// set trapping
 		g_trapping[id] = 1
@@ -546,12 +548,13 @@ FloatToNum(Float:floatn)
 }
 stock get_mod_prefix(prefix[], len)
 {
-	switch (nst_zb_get_mod())
+	if (g_zb_mod == NSTZB_ZB3)
 	{
-		case NSTZB_ZB3: formatex(prefix, len, "[Zombie Mod 3]")
-		case NSTZB_ZBS: formatex(prefix, len, "[Zombie Scenario]")
-		default: formatex(prefix, len, "[Zombie United]")
+		formatex(prefix, len, "[Zombie Mod 3]")
+		return;
 	}
+
+	formatex(prefix, len, "[Zombie United]")
 }
 bartime(id, time_run)
 {
