@@ -307,7 +307,9 @@ public cmd_setuptrap(id)
 		if (g_total_traps[id]>=max_traps)
 		{
 			new message[100]
-			format(message, charsmax(message), "^x04[Zombie United]^x01 %L", LANG_PLAYER, "CLASS_NOTICE_MAXTRAP", max_traps)
+			new prefix[24]
+			get_mod_prefix(prefix, charsmax(prefix))
+			format(message, charsmax(message), "^x04%s^x01 %L", prefix, LANG_PLAYER, "CLASS_NOTICE_MAXTRAP", max_traps)
 			nst_zb_color_saytext(id, message)
 			return PLUGIN_HANDLED
 		}
@@ -541,6 +543,15 @@ FloatToNum(Float:floatn)
 	num = str_to_num(str)
 	
 	return num
+}
+stock get_mod_prefix(prefix[], len)
+{
+	switch (nst_zb_get_mod())
+	{
+		case NSTZB_ZB3: formatex(prefix, len, "[Zombie Mod 3]")
+		case NSTZB_ZBS: formatex(prefix, len, "[Zombie Scenario]")
+		default: formatex(prefix, len, "[Zombie United]")
+	}
 }
 bartime(id, time_run)
 {
