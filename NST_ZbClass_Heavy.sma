@@ -10,7 +10,7 @@
 #define AUTHOR "NST"
 
 // Zombie Attributes
-new const zclass_name[] = "Heavy Zombie (Dat Bay)" // name
+new const zclass_name[] = "Heavy Zombie (Dat Bay2)" // name
 new const zclass_model[] = "heavy_zombi" // model
 const zclass_health = 3000 // health
 const Float:zclass_speed = 270.0 // speed
@@ -40,7 +40,7 @@ new trap_total, trap_timewait, trapped_time, trap_timesetup, trap_invisible
 
 // Vars
 new g_total_traps[33], g_msgScreenShake, g_msgStatusIcon, g_trapping[33], g_player_trapped[33]
-new g_waitsetup[33], TrapOrigins[33][MAX_TRAP_SLOTS][4], idsprites_trap
+new g_waitsetup[33], g_trap_icon_shown[33], TrapOrigins[33][MAX_TRAP_SLOTS][4], idsprites_trap
 // Task offsets
 enum (+= 100)
 {
@@ -425,16 +425,24 @@ remove_trapped_when_infected(id)
 }
 show_trap_icon(id)
 {
+	if (!is_user_connected(id) || g_trap_icon_shown[id]) return;
+
+	g_trap_icon_shown[id] = 1
 	message_begin(MSG_ONE, g_msgStatusIcon, _, id)
 	write_byte(1)
 	write_string("g_trap")
-	write_byte(0)
-	write_byte(160)
+	write_byte(255)
+	write_byte(215)
 	write_byte(0)
 	message_end()
 }
 clear_trap_icon(id)
 {
+	if (!g_trap_icon_shown[id]) return;
+
+	g_trap_icon_shown[id] = 0
+	if (!is_user_connected(id)) return;
+
 	message_begin(MSG_ONE, g_msgStatusIcon, _, id)
 	write_byte(0)
 	write_string("g_trap")
