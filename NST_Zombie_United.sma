@@ -6,6 +6,7 @@
 #include <xs>
 #include <engine>
 #include <nst_player>
+#include <nst_wpn>
 
 #define PLUGIN "Zombie United"
 #define VERSION "1.0"
@@ -2224,7 +2225,15 @@ give_spweapon_for_player(id)
 {
 	new weapon_name[64]
 	ArrayGetString(spweapon_item, random(ArraySize(spweapon_item)), weapon_name, charsmax(weapon_name))
-	fm_give_item(id, weapon_name)
+	if (equali(weapon_name, "weapon_", 7) || equali(weapon_name, "item_", 5))
+	{
+		fm_give_item(id, weapon_name)
+	}
+	else
+	{
+		if (equali(weapon_name, "nst_", 4)) copy(weapon_name, charsmax(weapon_name), weapon_name[4])
+		nst_wpn_give_weapon(id, weapon_name)
+	}
 	//client_print(id, print_chat, "[%s]", weapon_name)
 }
 show_icon_item(id)
