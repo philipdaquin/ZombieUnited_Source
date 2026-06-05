@@ -23,6 +23,7 @@ new const zclass_hurt2[] = "sound/nst_zombie/zombi_hurt_heavy_2.wav"
 new const zclass_death1[] = "sound/nst_zombie/zombi_death_1.wav"
 new const zclass_death2[] = "sound/nst_zombie/zombi_death_2.wav"
 new const zclass_heal[] = "sound/nst_zombie/zombi_heal_heavy.wav"
+new const zclass_evolution[] = "sound/nst_zombie/zombi_evolution.wav"
 new const model_trap[] = "models/nst_zombie/zombitrap.mdl"
 new const sound_trapsetup[] = "sound/nst_zombie/zombi_trapsetup.wav"
 new const sound_trapped[] = "sound/nst_zombie/zombi_trapped.wav"
@@ -88,9 +89,21 @@ public plugin_precache()
 	engfunc(EngFunc_PrecacheSound, sound_trapped)
 	idsprites_trap = engfunc(EngFunc_PrecacheModel, sprites_trap)
 
-	g_zclass_heavy = nst_zbu_register_zombie_class(zclass_name, zclass_model, zclass_health, 
-	zclass_gravity, zclass_speed, zclass_knockback, zclass_death1, zclass_death2, 
-	zclass_hurt1, zclass_hurt2, zclass_heal, zclass_sex, zclass_modelindex)
+	switch (nst_zb_get_mod())
+	{
+		case NSTZB_ZB3:
+		{
+			g_zclass_heavy = nst_zb3_register_zombie_class(zclass_name, zclass_model, zclass_gravity,
+			zclass_speed, zclass_knockback, zclass_death1, zclass_death2,
+			zclass_hurt1, zclass_hurt2, zclass_heal, zclass_evolution, zclass_sex, zclass_modelindex)
+		}
+		default:
+		{
+			g_zclass_heavy = nst_zbu_register_zombie_class(zclass_name, zclass_model, zclass_health,
+			zclass_gravity, zclass_speed, zclass_knockback, zclass_death1, zclass_death2,
+			zclass_hurt1, zclass_hurt2, zclass_heal, zclass_sex, zclass_modelindex)
+		}
+	}
 }
 
 public nst_zb_user_infected(id, infector)
