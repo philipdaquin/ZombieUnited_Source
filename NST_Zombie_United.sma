@@ -590,17 +590,16 @@ public event_round_start()
 	if (g_rount_count)
 	{
 		// reset value
-		for (new id = 1; id <= g_maxplayers; id++)
-		{
-			if (!is_user_alive(id)) continue;
-			
-			// reset value
-			reset_value_death(id)
-			
-			// team player attackment
-			if (task_exists(id+TASK_ATTACKMENT)) remove_task(id+TASK_ATTACKMENT)
-			set_task (2.0, "team_player_attackment", id+TASK_ATTACKMENT, _, _, "b")
-		}
+			for (new id = 1; id <= g_maxplayers; id++)
+			{
+				if (!is_user_alive(id)) continue;
+				
+				// reset value
+				reset_value_death(id)
+				
+				// team player attackment
+				start_team_player_attackment(id)
+			}
 		// wellcome
 		if (task_exists(TASK_WELLCOME)) remove_task(TASK_WELLCOME)
 		set_task(2.0, "wellcome", TASK_WELLCOME)
@@ -783,7 +782,10 @@ public fw_PlayerSpawn_Post(id)
 	// make player
 	if (task_exists(id+TASK_MAKEPLAYER)) remove_task(id+TASK_MAKEPLAYER)
 	set_task(0.5, "make_player", id+TASK_MAKEPLAYER)
-	
+
+	// team player attackment
+	start_team_player_attackment(id)
+
 }
 public fw_TakeDamage(victim, inflictor, attacker, Float:damage, damage_type)
 {
@@ -1132,6 +1134,11 @@ public team_player_attackment(taskid)
 		if (fm_cs_get_user_team(id) != fm_cs_get_user_team(player) || id == player) continue;
 		create_player_attackment(id, player, model_index, 2, 0)
 	}
+}
+stock start_team_player_attackment(id)
+{
+	if (task_exists(id+TASK_ATTACKMENT)) remove_task(id+TASK_ATTACKMENT)
+	set_task(2.0, "team_player_attackment", id+TASK_ATTACKMENT, _, _, "b")
 }
 create_player_attackment(id, player, model_index, life = 2000, origin_z = 0)
 {
