@@ -1363,7 +1363,7 @@ public reset_wpnmodel(id)
 public show_menu_class(taskid)
 {
 	new id = ID_MENUCLASS
-	if (g_newround || g_endround || !is_user_connected(id)) return;
+	if (g_newround || g_endround || !is_user_connected(id) || !is_team_player(id)) return;
 
 	g_class[id] = 0
 	
@@ -1425,7 +1425,7 @@ public select_class(id, menu, item)
 // menu class zombie
 public show_menu_class_zombie(id)
 {
-	if (!is_user_connected(id) || !g_zombie[id]) return PLUGIN_HANDLED
+	if (!is_user_connected(id) || !g_zombie[id] || !is_team_player(id)) return PLUGIN_HANDLED
 	
 	// create menu wpn
 	new menuwpn_title[64]
@@ -1531,7 +1531,7 @@ public make_player(taskid)
 	}
 	else
 	{
-		if (!g_class[id]) show_menu_class(id+TASK_MENUCLASS)
+		if (!g_class[id] && is_team_player(id)) show_menu_class(id+TASK_MENUCLASS)
 	}
 	
 	if (task_exists(id+TASK_MAKEPLAYER)) remove_task(id+TASK_MAKEPLAYER)
@@ -3430,6 +3430,11 @@ stock fm_set_user_armor(id, armor)
 stock fm_cs_get_user_team(id)
 {
 	return get_pdata_int(id, OFFSET_CSTEAMS, OFFSET_LINUX);
+}
+stock is_team_player(id)
+{
+	new team = fm_cs_get_user_team(id)
+	return (team == FM_CS_TEAM_T || team == FM_CS_TEAM_CT)
 }
 // Set entity's rendering type (from fakemeta_util)
 stock fm_set_rendering(entity, fx = kRenderFxNone, r = 255, g = 255, b = 255, render = kRenderNormal, amount = 16)
