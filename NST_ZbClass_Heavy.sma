@@ -110,10 +110,20 @@ public plugin_precache()
 
 public nst_zb_user_infected(id, infector)
 {
-	// remove trap
-	remove_trapped_when_infected(id)
-	clear_trap_icon(id)
+    if (is_valid_player_id(id))
+    {
+        remove_setuptrap(id);
+
+        if (task_exists(id + TASK_REMOVE_TIMEWAIT))
+            remove_task(id + TASK_REMOVE_TIMEWAIT);
+
+        g_waitsetup[id] = 0;
+    }
+
+    remove_trapped_when_infected(id);
+    clear_trap_icon(id);
 }
+
 public event_round_start()
 {
 	for (new id=1; id<33; id++)
@@ -140,14 +150,20 @@ public logevent_round_start()
 }
 public Death()
 {
-	new victim = read_data(2) 
-	
-	// remove trap
-	remove_trapped_when_infected(victim)
-	clear_trap_icon(victim)
-	
-	// set speed for player
-	//set_pev(victim, pev_flags, (pev(victim, pev_flags) & ~FL_FROZEN))
+    new victim = read_data(2);
+
+    if (is_valid_player_id(victim))
+    {
+        remove_setuptrap(victim);
+
+        if (task_exists(victim + TASK_REMOVE_TIMEWAIT))
+            remove_task(victim + TASK_REMOVE_TIMEWAIT);
+
+        g_waitsetup[victim] = 0;
+    }
+
+    remove_trapped_when_infected(victim);
+    clear_trap_icon(victim);
 }
 
 public client_connect(id)
@@ -211,7 +227,7 @@ public fw_CmdStart(id, uc_handle, seed)
 		// sequence of trap model
 		static classname[32]
 		pev(ent_trap, pev_classname, classname, charsmax(classname))
-		if (equal(classname, classname))
+		if (equal(classname, trap_classname))
 		{
 			if (pev(ent_trap, pev_sequence) != 1)
 			{
@@ -268,28 +284,30 @@ public pfn_touch(ptr, ptd)
 // show icon drap
 public client_PostThink(id)
 {
-	if (!is_user_alive(id)) return;
+    if (!is_valid_player_id(id)) return;
+    if (!is_user_alive(id)) return;
 
-	if (nst_zb_get_user_zombie(id) && nst_zb_get_user_zombie_class(id) == g_zclass_heavy)
-	{
-		show_trap_icon(id)
-	}
-	else
-	{
-		clear_trap_icon(id)
-	}
+    if (nst_zb_get_user_zombie(id) && nst_zb_get_user_zombie_class(id) == g_zclass_heavy)
+    {
+        show_trap_icon(id);
+    }
+    else
+    {
+        clear_trap_icon(id);
+        return;
+    }
 
-	if (!nst_zb_get_user_zombie(id) || !g_total_traps[id]) return;
+    if (g_total_traps[id] <= 0) return;
 
-	new trap_count = g_total_traps[id]
-	if (trap_count > MAX_TRAP) trap_count = MAX_TRAP
-	for (new i = 1; i <= trap_count; i++)
-	{
-		DrawSprite(id, i)
-	}
+    if (g_total_traps[id] > MAX_TRAP)
+        g_total_traps[id] = MAX_TRAP;
 
-	return;
+    for (new i = 1; i <= g_total_traps[id]; i++)
+    {
+        DrawSprite(id, i);
+    }
 }
+
 
 // cmd use skill
 public cmd_setuptrap(id)
@@ -332,24 +350,41 @@ public cmd_setuptrap(id)
 }
 public TrapSetup(taskid)
 {
-	new id = ID_TRAPSETUP
-	
-	// remove setup trap
-	remove_setuptrap(id)
+    new id = ID_TRAPSETUP;
 
-	// create model trap
-	create_w_class(id)
+    if (!is_valid_heavy_zombie(id))
+    {
+        if (is_valid_player_id(id))
+            remove_setuptrap(id);
 
-	// play sound
-	PlayEmitSound(id, sound_trapsetup)
-	
-	// remove task TrapSetup
-	if (task_exists(taskid)) remove_task(taskid)
+        if (task_exists(taskid))
+            remove_task(taskid);
 
-	// set wait time
-	g_waitsetup[id] = 1
-	if (task_exists(id+TASK_REMOVE_TIMEWAIT)) remove_task(id+TASK_REMOVE_TIMEWAIT)
-	set_task(get_pcvar_float(trap_timewait), "RemoveTimeWait", id+TASK_REMOVE_TIMEWAIT)
+        return;
+    }
+
+    remove_setuptrap(id);
+
+    new result = create_w_class(id);
+    if (result <= 0)
+    {
+        if (task_exists(taskid))
+            remove_task(taskid);
+
+        return;
+    }
+
+    PlayEmitSound(id, sound_trapsetup);
+
+    if (task_exists(taskid))
+        remove_task(taskid);
+
+    g_waitsetup[id] = 1;
+
+    if (task_exists(id + TASK_REMOVE_TIMEWAIT))
+        remove_task(id + TASK_REMOVE_TIMEWAIT);
+
+    set_task(get_pcvar_float(trap_timewait), "RemoveTimeWait", id + TASK_REMOVE_TIMEWAIT);
 }
 public RemoveTimeWait(taskid)
 {
@@ -470,54 +505,62 @@ clear_trap_icon(id)
 }
 create_w_class(id)
 {
-	if (!nst_zb_get_user_zombie(id)) return -1;
-	if (g_total_traps[id] >= MAX_TRAP) return -1;
+    if (!is_valid_heavy_zombie(id)) return 0;
 
-	new user_flags = pev(id, pev_flags)
-	if (!(user_flags & FL_ONGROUND))
-	{
-		return 0;
-	}
-	
-	// get origin
-	new Float:origin[3]
-	pev(id, pev_origin, origin)
+    if (g_total_traps[id] < 0)
+        g_total_traps[id] = 0;
 
-	new ent = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "info_target"))
-	if (!ent) return -1;
-	
-	// Set trap data
-	set_pev(ent, pev_classname, trap_classname)
-	set_pev(ent, pev_solid, SOLID_TRIGGER)
-	set_pev(ent, pev_movetype, 6)
-	set_pev(ent, pev_sequence, 0)
-	set_pev(ent, pev_frame, 0.0)
-	set_pev(ent, pev_owner, id)
-	//set_pev(ent, pev_iuser1, id)
-	
-	// Set trap size
-	new Float:mins[3] = { -20.0, -20.0, 0.0 }
-	new Float:maxs[3] = { 20.0, 20.0, 30.0 }
-	engfunc(EngFunc_SetSize, ent, mins, maxs)
-	
-	// Set trap model
-	engfunc(EngFunc_SetModel, ent, model_trap)
+    // Keep this as MAX_TRAP, not MAX_TRAP - 1.
+    if (g_total_traps[id] >= MAX_TRAP)
+        return 0;
 
-	// Set trap position
-	set_pev(ent, pev_origin, origin)
-	
-	
-	// set invisible
-	fm_set_rendering(ent,kRenderFxGlowShell,0,0,0,kRenderTransAlpha, trap_invisible)
-	
-	// trap counter
-	g_total_traps[id] += 1
-	TrapOrigins[id][g_total_traps[id]][0] = ent
-	TrapOrigins[id][g_total_traps[id]][1] = FloatToNum(origin[0])
-	TrapOrigins[id][g_total_traps[id]][2] = FloatToNum(origin[1])
-	TrapOrigins[id][g_total_traps[id]][3] = FloatToNum(origin[2])
-	
-	return -1;
+    new user_flags = pev(id, pev_flags);
+    if (!(user_flags & FL_ONGROUND))
+        return 0;
+
+    new Float:origin[3];
+    pev(id, pev_origin, origin);
+
+    new ent = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "info_target"));
+    if (!pev_valid(ent))
+        return 0;
+
+    set_pev(ent, pev_classname, trap_classname);
+    set_pev(ent, pev_solid, SOLID_TRIGGER);
+    set_pev(ent, pev_movetype, 6);
+    set_pev(ent, pev_sequence, 0);
+    set_pev(ent, pev_frame, 0.0);
+    set_pev(ent, pev_owner, id);
+
+    new Float:mins[3] = { -20.0, -20.0, 0.0 };
+    new Float:maxs[3] = { 20.0, 20.0, 30.0 };
+    engfunc(EngFunc_SetSize, ent, mins, maxs);
+
+    engfunc(EngFunc_SetModel, ent, model_trap);
+    set_pev(ent, pev_origin, origin);
+
+    fm_set_rendering(ent, kRenderFxGlowShell, 0, 0, 0, kRenderTransAlpha, get_pcvar_num(trap_invisible));
+
+    g_total_traps[id] += 1;
+
+    if (g_total_traps[id] < 1 || g_total_traps[id] > MAX_TRAP)
+    {
+        g_total_traps[id] = MAX_TRAP;
+
+        if (pev_valid(ent))
+            engfunc(EngFunc_RemoveEntity, ent);
+
+        return 0;
+    }
+
+    new slot = g_total_traps[id];
+
+    TrapOrigins[id][slot][0] = ent;
+    TrapOrigins[id][slot][1] = floatround(origin[0]);
+    TrapOrigins[id][slot][2] = floatround(origin[1]);
+    TrapOrigins[id][slot][3] = floatround(origin[2]);
+
+    return ent;
 }
 PlayEmitSound(id, const sound[])
 {
@@ -564,31 +607,46 @@ bartime(id, time_run)
 }
 DrawSprite(id, idtrap)
 {
-	if (idtrap < 1 || idtrap > MAX_TRAP) return;
+    if (!is_valid_player_id(id)) return;
+    if (!is_user_connected(id)) return;
+    if (idtrap < 1 || idtrap > MAX_TRAP) return;
+    if (idtrap > g_total_traps[id]) return;
+    if (idsprites_trap <= 0) return;
 
-	message_begin(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, {0, 0, 0}, id)
-	write_byte(TE_SPRITE) // additive sprite, plays 1 cycle
-	write_coord(TrapOrigins[id][idtrap][1]) // xpos
-	write_coord(TrapOrigins[id][idtrap][2]) // ypos
-	write_coord(TrapOrigins[id][idtrap][3]) // zpos
-	write_short(idsprites_trap) // spr index
-	write_byte(2) // (scale in 0.1's)
-	write_byte(30) //brightness
-	message_end()
+    new ent = TrapOrigins[id][idtrap][0];
+    if (!pev_valid(ent)) return;
+
+    message_begin(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, {0, 0, 0}, id);
+    write_byte(TE_SPRITE);
+    write_coord(TrapOrigins[id][idtrap][1]);
+    write_coord(TrapOrigins[id][idtrap][2]);
+    write_coord(TrapOrigins[id][idtrap][3]);
+    write_short(idsprites_trap);
+    write_byte(2);
+    write_byte(30);
+    message_end();
 }
 remove_traps()
 {
-	// reset model
-	new nextitem  = find_ent_by_class(-1, trap_classname)
-	while(nextitem)
-	{
-		remove_entity(nextitem)
-		nextitem = find_ent_by_class(-1, trap_classname)
-	}
-	
-	// reset oringin
-	//new TrapOrigins_reset[33][MAX_TRAP][4]
-	//TrapOrigins = TrapOrigins_reset
+    new nextitem = find_ent_by_class(-1, trap_classname);
+    while (nextitem)
+    {
+        remove_entity(nextitem);
+        nextitem = find_ent_by_class(-1, trap_classname);
+    }
+
+    for (new id = 1; id <= 32; id++)
+    {
+        g_total_traps[id] = 0;
+
+        for (new i = 0; i <= MAX_TRAP; i++)
+        {
+            TrapOrigins[id][i][0] = 0;
+            TrapOrigins[id][i][1] = 0;
+            TrapOrigins[id][i][2] = 0;
+            TrapOrigins[id][i][3] = 0;
+        }
+    }
 }
 remove_traps_player(id)
 {
@@ -612,4 +670,22 @@ user_screen_shake(id, amplitude = 4, duration = 2, frequency = 10)
 	write_short((1<<12)*duration) // ??
 	write_short((1<<12)*frequency) // ??
 	message_end()
+}
+
+
+stock bool:is_valid_player_id(id)
+{
+    return (1 <= id <= 32);
+}
+
+stock bool:is_valid_heavy_zombie(id)
+{
+    if (!is_valid_player_id(id)) return false;
+    if (!is_user_connected(id)) return false;
+    if (!is_user_alive(id)) return false;
+    if (!nst_zb_get_take_damage()) return false;
+    if (!nst_zb_get_user_zombie(id)) return false;
+    if (nst_zb_get_user_zombie_class(id) != g_zclass_heavy) return false;
+
+    return true;
 }
