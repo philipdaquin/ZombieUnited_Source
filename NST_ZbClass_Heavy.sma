@@ -284,7 +284,7 @@ public pfn_touch(ptr, ptd)
 // show icon drap
 public client_PostThink(id)
 {
-    if (!is_valid_player_id(id)) return;
+    if (id < 1 || id > 32) return;
     if (!is_user_alive(id)) return;
 
     if (nst_zb_get_user_zombie(id) && nst_zb_get_user_zombie_class(id) == g_zclass_heavy)
@@ -299,15 +299,18 @@ public client_PostThink(id)
 
     if (g_total_traps[id] <= 0) return;
 
+	// if counter is corrupted, clear data to prevent potential abuse and other issues.
     if (g_total_traps[id] > MAX_TRAP)
-        g_total_traps[id] = MAX_TRAP;
+    {
+        clear_trap_data(id);
+        return;
+    }
 
     for (new i = 1; i <= g_total_traps[id]; i++)
     {
         DrawSprite(id, i);
     }
 }
-
 
 // cmd use skill
 public cmd_setuptrap(id)
@@ -607,20 +610,56 @@ bartime(id, time_run)
 }
 DrawSprite(id, idtrap)
 {
-    if (!is_valid_player_id(id)) return;
+    if (id < 1 || id > 32) return;
     if (!is_user_connected(id)) return;
     if (idtrap < 1 || idtrap > MAX_TRAP) return;
+
+    if (g_total_traps[id] < 1) return;
+    if (g_total_traps[id] > MAX_TRAP)
+    {
+        g_total_traps[id] = 0;
+        return;
+    }
+
     if (idtrap > g_total_traps[id]) return;
-    if (idsprites_trap <= 0) return;
 
     new ent = TrapOrigins[id][idtrap][0];
-    if (!pev_valid(ent)) return;
 
-    message_begin(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, {0, 0, 0}, id);
+    // IMPORTANT: sanity check raw entity number before pev_valid/is_valid_ent
+    if (ent <= 0 || ent > global_get(glb_maxEntities))
+    {
+        TrapOrigins[id][idtrap][0] = 0;
+        TrapOrigins[id][idtrap][1] = 0;
+        TrapOrigins[id][idtrap][2] = 0;
+        TrapOrigins[id][idtrap][3] = 0;
+        return;
+    }
+
+    if (!pev_valid(ent))
+    {
+        TrapOrigins[id][idtrap][0] = 0;
+        TrapOrigins[id][idtrap][1] = 0;
+        TrapOrigins[id][idtrap][2] = 0;
+        TrapOrigins[id][idtrap][3] = 0;
+        return;
+    }
+
+    if (idsprites_trap <= 0) return;
+
+    new x = TrapOrigins[id][idtrap][1];
+    new y = TrapOrigins[id][idtrap][2];
+    new z = TrapOrigins[id][idtrap][3];
+
+    // Avoid sending insane corrupted coords.
+    if (x < -32768 || x > 32767) return;
+    if (y < -32768 || y > 32767) return;
+    if (z < -32768 || z > 32767) return;
+
+    message_begin(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, _, id);
     write_byte(TE_SPRITE);
-    write_coord(TrapOrigins[id][idtrap][1]);
-    write_coord(TrapOrigins[id][idtrap][2]);
-    write_coord(TrapOrigins[id][idtrap][3]);
+    write_coord(x);
+    write_coord(y);
+    write_coord(z);
     write_short(idsprites_trap);
     write_byte(2);
     write_byte(30);
@@ -650,18 +689,20 @@ remove_traps()
 }
 remove_traps_player(id)
 {
-	// remove model trap in map
-	new trap_count = g_total_traps[id]
-	if (trap_count > MAX_TRAP) trap_count = MAX_TRAP
-	for (new i = 1; i <= trap_count; i++)
-	{
-		new trap_ent = TrapOrigins[id][i][0]
-		if (is_valid_ent(trap_ent)) engfunc(EngFunc_RemoveEntity, trap_ent)
-	}
-	
-	// reset oringin
-	new TrapOrigins_pl[MAX_TRAP_SLOTS][4]
-	TrapOrigins[id] = TrapOrigins_pl
+    if (id < 1 || id > 32) return;
+
+    new trap_count = g_total_traps[id];
+    if (trap_count > MAX_TRAP) trap_count = MAX_TRAP;
+
+    for (new i = 1; i <= trap_count; i++)
+    {
+        new trap_ent = TrapOrigins[id][i][0];
+
+        if (trap_ent > 0 && trap_ent <= global_get(glb_maxEntities) && pev_valid(trap_ent))
+            engfunc(EngFunc_RemoveEntity, trap_ent);
+    }
+
+    clear_trap_data(id);
 }
 user_screen_shake(id, amplitude = 4, duration = 2, frequency = 10)
 {
@@ -688,4 +729,20 @@ stock bool:is_valid_heavy_zombie(id)
     if (nst_zb_get_user_zombie_class(id) != g_zclass_heavy) return false;
 
     return true;
+}
+
+
+stock clear_trap_data(id)
+{
+    if (id < 1 || id > 32) return;
+
+    g_total_traps[id] = 0;
+
+    for (new i = 0; i <= MAX_TRAP; i++)
+    {
+        TrapOrigins[id][i][0] = 0;
+        TrapOrigins[id][i][1] = 0;
+        TrapOrigins[id][i][2] = 0;
+        TrapOrigins[id][i][3] = 0;
+    }
 }
