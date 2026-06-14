@@ -10,6 +10,7 @@
 #define AUTHOR "NST"
 
 // Zombie Attributes
+#define HEAVY_SOUND_DIR "nst_zombie/"
 new const zclass_name[] = "Heavy Zombie (Dat Bay2)" // name
 new const zclass_model[] = "heavy_zombi" // model
 const zclass_health = 3000 // health
@@ -18,15 +19,15 @@ const Float:zclass_gravity = 1.2 // gravity
 const Float:zclass_knockback = 1.0 // knockback
 const zclass_sex = 1
 const zclass_modelindex = 3
-new const zclass_hurt1[] = "nst_zombie/zombi_hurt_heavy_1.wav"
-new const zclass_hurt2[] = "nst_zombie/zombi_hurt_heavy_2.wav"
-new const zclass_death1[] = "nst_zombie/zombi_death_1.wav"
-new const zclass_death2[] = "nst_zombie/zombi_death_2.wav"
-new const zclass_heal[] = "nst_zombie/zombi_heal_heavy.wav"
-new const zclass_evolution[] = "nst_zombie/zombi_evolution.wav"
+new const zclass_hurt1[] = "zombi_hurt_heavy_1.wav"
+new const zclass_hurt2[] = "zombi_hurt_heavy_2.wav"
+new const zclass_death1[] = "zombi_death_1.wav"
+new const zclass_death2[] = "zombi_death_2.wav"
+new const zclass_heal[] = "zombi_heal_heavy.wav"
+new const zclass_evolution[] = "zombi_evolution.wav"
 new const model_trap[] = "models/nst_zombie/zombitrap.mdl"
-new const sound_trapsetup[] = "nst_zombie/zombi_trapsetup.wav"
-new const sound_trapped[] = "nst_zombie/zombi_trapped.wav"
+new const sound_trapsetup[] = "zombi_trapsetup.wav"
+new const sound_trapped[] = "zombi_trapped.wav"
 new const sprites_trap[] = "sprites/nst_zombie/trap.spr"
 
 const MAX_TRAP = 30
@@ -86,8 +87,8 @@ public plugin_init()
 public plugin_precache()
 {
 	engfunc(EngFunc_PrecacheModel, model_trap)
-	engfunc(EngFunc_PrecacheSound, sound_trapsetup)
-	engfunc(EngFunc_PrecacheSound, sound_trapped)
+	precache_heavy_sound(sound_trapsetup)
+	precache_heavy_sound(sound_trapped)
 	idsprites_trap = engfunc(EngFunc_PrecacheModel, sprites_trap)
 	g_zb_mod = nst_zb_get_mod()
 
@@ -106,6 +107,13 @@ public plugin_precache()
 			zclass_hurt1, zclass_hurt2, zclass_heal, zclass_sex, zclass_modelindex)
 		}
 	}
+}
+
+stock precache_heavy_sound(const sound_file[])
+{
+	new sound_path[96]
+	formatex(sound_path, charsmax(sound_path), "%s%s", HEAVY_SOUND_DIR, sound_file)
+	engfunc(EngFunc_PrecacheSound, sound_path)
 }
 
 public nst_zb_user_infected(id, infector)
